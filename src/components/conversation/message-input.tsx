@@ -20,10 +20,27 @@ export const MessageInput = ({ conversationId }: MessageInputProps) => {
   
   useEffect(() => {
     if (session?.user?.id) {
+      console.log('📌 MessageInput: Initializing socket and joining conversation');
       const socket = initializeSocket(session.user.id);
-      socket.emit('join-conversation', conversationId);
+      
+      // Wait a moment for socket to connect before joining room
+      const joinRoom = () => {
+        if (socket.connected) {
+          console.log('🚪 Joining conversation room:', conversationId);
+          socket.emit('join-conversation', conversationId);
+        } else {
+          console.log('⏰ Socket not connected yet, waiting...');
+          socket.once('connect', () => {
+            console.log('🚪 Joining conversation room after connect:', conversationId);
+            socket.emit('join-conversation', conversationId);
+          });
+        }
+      };
+      
+      joinRoom();
       
       return () => {
+        console.log('💻 MessageInput: Leaving conversation:', conversationId);
         socket.emit('leave-conversation', conversationId);
       };
     }
@@ -60,16 +77,34 @@ export const MessageInput = ({ conversationId }: MessageInputProps) => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!message.trim() || !session?.user?.id) return;
+    console.log('📝 Attempting to send message:', { message: message.trim(), conversationId, userId: session?.user?.id });
+    
+    if (!message.trim() || !session?.user?.id) {
+      console.log('⚠️ Cannot send message - missing data:', { message: message.trim(), userId: session?.user?.id });
+      return;
+    }
     
     setIsSubmitting(true);
     
     try {
+      console.log('🔌 Getting socket connection...');
       const socket = getSocket();
+      console.log('✅ Socket obtained:', { connected: socket.connected, id: socket.id });
       
-      socket.emit('send-message', {
+      const messageData = {
         conversationId,
-        text: message.trim(),
+        content: message.trim(),
+      };
+      
+      console.log('🚀 Emitting send-message event:', messageData);
+      socket.emit('send-message', messageData);
+      
+      console.log('✅ Message sent to server successfully');
+      console.log('🎯 Message data sent:', {
+        conversationId: messageData.conversationId,
+        content: messageData.content,
+        socketConnected: socket.connected,
+        socketId: socket.id
       });
       
       // Clear the input after successful send
@@ -79,7 +114,7 @@ export const MessageInput = ({ conversationId }: MessageInputProps) => {
       // Emit typing stopped
       socket.emit('typing', { conversationId, isTyping: false });
     } catch (error) {
-      console.error('Failed to send message:', error);
+      console.error('🚫 Failed to send message:', error);
       toast.error('Failed to send message. Please try again.');
     } finally {
       setIsSubmitting(false);

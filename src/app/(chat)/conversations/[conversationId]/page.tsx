@@ -1,10 +1,11 @@
 import { auth } from '@/auth';
 import { redirect } from 'next/navigation';
-import prisma from '@/lib/prisma';
+import { prisma } from '@/lib/prisma';
 import { MessageList } from '@/components/conversation/message-list';
 import { MessageInput } from '@/components/conversation/message-input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { MobileToggle } from '@/components/sidebar/mobile-toggle';
+import { UserStatus } from '@/components/conversation/user-status';
 
 interface ConversationPageProps {
   params: {
@@ -14,6 +15,7 @@ interface ConversationPageProps {
 
 export default async function ConversationPage({ params }: ConversationPageProps) {
   const session = await auth();
+  const { conversationId } = await params;
 
   if (!session?.user) {
     redirect('/login');
@@ -21,19 +23,15 @@ export default async function ConversationPage({ params }: ConversationPageProps
 
   const conversation = await prisma.conversation.findUnique({
     where: {
-      id: params.conversationId,
-      participants: {
-        some: {
-          userId: session.user.id
-        }
-      }
+      id: conversationId,
+      OR: [
+        { userOneId: session.user.id },
+        { userTwoId: session.user.id }
+      ]
     },
     include: {
-      participants: {
-        include: {
-          user: true
-        }
-      }
+      userOne: true,
+      userTwo: true
     },
   });
 
@@ -42,10 +40,9 @@ export default async function ConversationPage({ params }: ConversationPageProps
   }
 
   // Get the other user in the conversation
-  const otherParticipant = conversation.participants.find(
-    participant => participant.user.id !== session.user.id
-  );
-  const otherUser = otherParticipant?.user;
+  const otherUser = conversation.userOneId === session.user.id 
+    ? conversation.userTwo 
+    : conversation.userOne;
 
   return (
     <div className="flex flex-col h-full">
@@ -59,23 +56,11 @@ export default async function ConversationPage({ params }: ConversationPageProps
         </Avatar>
         <div className="flex-1 overflow-hidden">
           <h2 className="font-semibold text-sm sm:text-base truncate">{otherUser?.name || otherUser?.email || 'Chat'}</h2>
-          <p className="text-xs text-muted-foreground">
-            {otherUser?.isOnline ? (
-              <span className="text-green-500 flex items-center gap-1">
-                <span className="h-2 w-2 rounded-full bg-green-500"></span>
-                <span className="truncate">Online</span>
-              </span>
-            ) : (
-              <span className="text-muted-foreground flex items-center gap-1">
-                <span className="h-2 w-2 rounded-full bg-muted-foreground"></span>
-                <span className="truncate">Offline</span>
-              </span>
-            )}
-          </p>
+          {otherUser && <UserStatus user={otherUser} />}
         </div>
       </div>
-      <MessageList conversationId={params.conversationId} currentUserId={session.user.id} />
-      <MessageInput conversationId={params.conversationId} />
+      <MessageList conversationId={conversationId} currentUserId={session.user.id} />
+      <MessageInput conversationId={conversationId} />
     </div>
   );
 }

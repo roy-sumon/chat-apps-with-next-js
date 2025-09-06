@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
-import prisma from '@/lib/prisma';
+import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
 
 const conversationSchema = z.object({
@@ -38,28 +38,29 @@ export async function POST(req: Request) {
     // Check if a conversation already exists between these users
     const existingConversation = await prisma.conversation.findFirst({
       where: {
-        AND: [
+        OR: [
           {
-            participants: {
-              some: {
-                userId: currentUserId
-              }
-            }
+            AND: [
+              { userOneId: currentUserId },
+              { userTwoId: user.id }
+            ]
           },
           {
-            participants: {
-              some: {
-                userId: user.id
-              }
-            }
+            AND: [
+              { userOneId: user.id },
+              { userTwoId: currentUserId }
+            ]
           }
         ]
       },
       include: {
-        participants: {
-          include: {
-            user: true
-          }
+        userOne: true,
+        userTwo: true,
+        messages: {
+          orderBy: {
+            createdAt: 'desc'
+          },
+          take: 1
         }
       }
     });
@@ -71,22 +72,17 @@ export async function POST(req: Request) {
     // Create a new conversation
     const conversation = await prisma.conversation.create({
       data: {
-        participants: {
-          create: [
-            {
-              userId: currentUserId
-            },
-            {
-              userId: user.id
-            }
-          ]
-        }
+        userOneId: currentUserId,
+        userTwoId: user.id
       },
       include: {
-        participants: {
-          include: {
-            user: true
-          }
+        userOne: true,
+        userTwo: true,
+        messages: {
+          orderBy: {
+            createdAt: 'desc'
+          },
+          take: 1
         }
       }
     });
@@ -115,18 +111,14 @@ export async function GET() {
     // Get all conversations for the current user
     const conversations = await prisma.conversation.findMany({
       where: {
-        participants: {
-          some: {
-            userId: currentUserId
-          }
-        }
+        OR: [
+          { userOneId: currentUserId },
+          { userTwoId: currentUserId }
+        ]
       },
       include: {
-        participants: {
-          include: {
-            user: true
-          }
-        },
+        userOne: true,
+        userTwo: true,
         messages: {
           orderBy: {
             createdAt: 'desc'
@@ -135,7 +127,7 @@ export async function GET() {
         }
       },
       orderBy: {
-        lastMessageAt: 'desc'
+        updatedAt: 'desc'
       }
     });
 

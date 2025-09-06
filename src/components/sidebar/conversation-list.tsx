@@ -9,10 +9,9 @@ import { getSocket, initializeSocket } from '@/lib/socket';
 import { useSession } from 'next-auth/react';
 import { toast } from 'sonner';
 
-type ConversationWithParticipants = Conversation & {
-  participants: {
-    user: User;
-  }[];
+type ConversationWithUsers = Conversation & {
+  userOne: User;
+  userTwo: User;
   messages: Message[];
 };
 
@@ -22,9 +21,14 @@ interface ConversationListProps {
 
 export const ConversationList = ({ userId }: ConversationListProps) => {
   const router = useRouter();
-  const [conversations, setConversations] = useState<ConversationWithParticipants[]>([]);
+  const [conversations, setConversations] = useState<ConversationWithUsers[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isClient, setIsClient] = useState(false);
   const { data: session } = useSession();
+  
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
 
   useEffect(() => {
     // Fetch conversations from the API
@@ -52,7 +56,7 @@ export const ConversationList = ({ userId }: ConversationListProps) => {
       const socket = initializeSocket(session.user.id);
       
       // Listen for new conversations
-      socket.on('new-conversation', (conversation: ConversationWithParticipants) => {
+      socket.on('new-conversation', (conversation: ConversationWithUsers) => {
         setConversations(prev => [conversation, ...prev]);
       });
       
@@ -77,6 +81,13 @@ export const ConversationList = ({ userId }: ConversationListProps) => {
 
   const handleSelectConversation = (conversationId: string) => {
     router.push(`/conversations/${conversationId}`);
+  };
+  
+  const formatTime = (date: string | Date) => {
+    if (!isClient) {
+      return '--:--';
+    }
+    return new Date(date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
   if (isLoading) {
@@ -107,8 +118,7 @@ export const ConversationList = ({ userId }: ConversationListProps) => {
   return (
     <div className="flex flex-col gap-2 py-2">
       {conversations.map((conversation) => {
-        const otherParticipant = conversation.participants.find(p => p.user.id !== userId);
-        const otherUser = otherParticipant?.user;
+        const otherUser = conversation.userOneId === userId ? conversation.userTwo : conversation.userOne;
         const lastMessage = conversation.messages[0];
         
         return (
@@ -133,7 +143,7 @@ export const ConversationList = ({ userId }: ConversationListProps) => {
             </div>
             {conversation.lastMessageAt && (
               <div className="text-xs text-muted-foreground hidden sm:block">
-                {new Date(conversation.lastMessageAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                {formatTime(conversation.lastMessageAt)}
               </div>
             )}
           </button>

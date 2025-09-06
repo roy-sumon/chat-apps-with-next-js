@@ -6,16 +6,15 @@
 
 generator client {
   provider = "prisma-client-js"
-  output   = "../src/generated/prisma"
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = "file:./dev.db"
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
 }
 
 model User {
-  id            String    @id @default(cuid())
+  id            String    @id @default(auto()) @map("_id") @db.ObjectId
   name          String?
   email         String?   @unique
   emailVerified DateTime?
@@ -35,8 +34,8 @@ model User {
 }
 
 model Account {
-  id                String  @id @default(cuid())
-  userId            String
+  id                String  @id @default(auto()) @map("_id") @db.ObjectId
+  userId            String  @db.ObjectId
   type              String
   provider          String
   providerAccountId String
@@ -54,14 +53,15 @@ model Account {
 }
 
 model Session {
-  id           String   @id @default(cuid())
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
   sessionToken String   @unique
-  userId       String
+  userId       String   @db.ObjectId
   expires      DateTime
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model VerificationToken {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
   identifier String
   token      String   @unique
   expires    DateTime
@@ -70,9 +70,9 @@ model VerificationToken {
 }
 
 model Conversation {
-  id        String   @id @default(cuid())
-  userOneId String
-  userTwoId String
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userOneId String   @db.ObjectId
+  userTwoId String   @db.ObjectId
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -84,11 +84,11 @@ model Conversation {
 }
 
 model Message {
-  id             String   @id @default(cuid())
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
   content        String
-  senderId       String
-  receiverId     String
-  conversationId String
+  senderId       String   @db.ObjectId
+  receiverId     String   @db.ObjectId
+  conversationId String   @db.ObjectId
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
   isRead         Boolean  @default(false)

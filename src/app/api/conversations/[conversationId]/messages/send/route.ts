@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
-import prisma from '@/lib/prisma';
+import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
 
 const messageSchema = z.object({
@@ -13,6 +13,7 @@ export async function POST(
 ) {
   try {
     const session = await auth();
+    const { conversationId } = await params;
 
     if (!session?.user?.id) {
       return new NextResponse('Unauthorized', { status: 401 });
@@ -21,18 +22,16 @@ export async function POST(
     const body = await req.json();
     const { content } = messageSchema.parse(body);
     
-    const conversationId = params.conversationId;
     const currentUserId = session.user.id;
 
     // Check if the user is part of the conversation
     const conversation = await prisma.conversation.findUnique({
       where: {
         id: conversationId,
-        participants: {
-          some: {
-            userId: currentUserId
-          }
-        }
+        OR: [
+          { userOneId: currentUserId },
+          { userTwoId: currentUserId }
+        ]
       },
     });
 
@@ -40,25 +39,29 @@ export async function POST(
       return new NextResponse('Conversation not found', { status: 404 });
     }
 
+    // Determine receiver (the other user in the conversation)
+    const receiverId = conversation.userOneId === currentUserId ? conversation.userTwoId : conversation.userOneId;
+
     // Create the message
     const message = await prisma.message.create({
       data: {
         content,
         conversationId,
         senderId: currentUserId,
+        receiverId,
       },
       include: {
         sender: true
       }
     });
 
-    // Update the conversation's lastMessageAt
+    // Update the conversation's updatedAt timestamp
     await prisma.conversation.update({
       where: {
         id: conversationId
       },
       data: {
-        lastMessageAt: new Date()
+        updatedAt: new Date()
       }
     });
 

@@ -1,12 +1,26 @@
 import { User } from '@prisma/client';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { useEffect, useState } from 'react';
 
 interface UserProfileProps {
   user: User;
 }
 
 export const UserProfile = ({ user }: UserProfileProps) => {
+  const [isClient, setIsClient] = useState(false);
+  
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
+  
+  const formatLastSeen = (date: string | Date | null) => {
+    if (!isClient || !date) {
+      return 'Never';
+    }
+    return new Date(date).toLocaleString();
+  };
+  
   return (
     <Card className="w-full max-w-md">
       <CardHeader className="flex flex-row items-center gap-4">
@@ -42,7 +56,7 @@ export const UserProfile = ({ user }: UserProfileProps) => {
           <div className="flex justify-between">
             <span className="text-sm font-medium">Last seen:</span>
             <span className="text-sm">
-              {user.lastSeen ? new Date(user.lastSeen).toLocaleString() : 'Never'}
+              {formatLastSeen(user.lastSeen)}
             </span>
           </div>
         </div>
